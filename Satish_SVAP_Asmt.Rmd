@@ -1,0 +1,114 @@
+---
+title: "Satish_SVAP_Asmt"
+author: "Satish Kaushik"
+date: "7/15/2017"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+# Frame and Acquisition of Data
+I have choosen to scrape data from NHRFD on a Day basis. Collected 5 years data from year 2012 to year 2016.
+
+```{r}
+library(rvest)
+pg.out = read_html('../MonthWiseMarketArrivals_Potato.html')
+pg.table = pg.out %>%
+           html_node('#dnn_ctr974_MonthWiseMarketArrivals_GridView1') %>%
+           html_table()
+df = pg.table
+str(df)
+```
+
+# Refine
+- Rename the column names
+```{r}
+newnames = c('market', 'month', 'year', 'quantity', 'priceMin', 'priceMax', 'priceMod' )
+colnames(df) = newnames
+str(df)
+```
+
+- Remove last row which contains Total details.
+```{r}
+library(dplyr)
+tail(df)
+df = df %>%
+  filter(year != "Total")
+tail(df)
+```
+
+- Change the respective data types
+
+```{r}
+df$year = as.numeric(df$year)
+df$priceMin = as.numeric(df$priceMin)
+df$priceMax = as.numeric(df$priceMax)
+df$priceMod = as.numeric(df$priceMod)
+str(df)
+```
+
+- Create the date column
+```{r}
+head(df)
+df = df %>% 
+  mutate(date = paste("01", month, year, sep="-"))
+df$date = as.Date(df$date, "%d-%B-%Y")
+str(df)
+```
+
+- Split City/State Names from market column
+
+```{r}
+library(stringr)
+library(tidyr)
+df = df %>% 
+  mutate(market1 = market) %>%
+  separate(market1, c('city', 'state'), sep = "\\(")
+head(df, 20)
+```
+
+# Analyzing the data using plots/graphs
+- Plot of month vs quantity, different colors for each year
+```{r}
+library(ggplot2)
+
+g1 = ggplot(df) + 
+  aes(df$month, df$quantity, color=year) + 
+  geom_point()
+g1
+```
+
+- plot of month vs max price, different colors for each year
+```{r}
+g2 = ggplot(df) + 
+  aes(df$month, df$priceMax, color=year) + 
+  geom_point()
+g2
+```
+
+
+```{r}
+library(plotly)
+ggplotly(g1)
+```
+#interactive visualization of data
+
+```{r}
+library(crosstalk)
+library(d3scatter)
+
+shared_rawdata <- SharedData$new(df)
+
+bscols(
+  list(
+    filter_checkbox("month", "monthSelect", shared_rawdata, ~month, inline = TRUE),
+    filter_checkbox("year", "yearSelect", shared_rawdata, ~year, inline = TRUE),
+    filter_slider("Quantity", "Quantity", shared_rawdata, ~quantity, width = "100%")
+  ),
+  
+  d3scatter(shared_rawdata, ~year, ~quantity, ~year, width="100%", height=300),
+  d3scatter(shared_rawdata, ~year, ~quantity, ~month, width="100%", height=300)
+
+)
+```
+
